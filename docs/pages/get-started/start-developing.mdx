@@ -1,97 +1,163 @@
----
-title: Start developing
-description: Make your first change to an Expo project and see it live on your device.
-hideTOC: true
----
+import React, { useState } from 'react';
+import { View, ScrollView, StyleSheet, Button } from 'react-native';
+import { Text, Card, Title, Appbar, DataTable, Chip, Paragraph } from 'react-native-paper';
+import { LineChart, Grid, YAxis, XAxis, BarChart, PieChart } from 'react-native-svg-charts';
+import * as shape from 'd3-shape';
+import RNFS from 'react-native-fs';
+import Share from 'react-native-share';
+import RNHTMLtoPDF from 'react-native-html-to-pdf';
 
-import { ProjectStructure } from '~/scenes/get-started/start-developing/ProjectStructure';
-import { TemplateFeatures } from '~/scenes/get-started/start-developing/TemplateFeatures';
-import { Collapsible } from '~/ui/components/Collapsible';
-import { ContentSpotlight } from '~/ui/components/ContentSpotlight';
-import { Terminal, DiffBlock } from '~/ui/components/Snippet';
-import { Step } from '~/ui/components/Step';
+export default function EmendasDashboard() {
+  const [filtroMunicipio, setFiltroMunicipio] = useState(null);
+  const [filtroTipo, setFiltroTipo] = useState(null);
 
-<Step label="1">
-## Start a development server
-To start the development server, run the following command:
+  const anos = ['2019', '2020', '2021', '2022', '2023', '2024'];
+  const dados = [42, 56, 68, 71, 89, 96];
 
-<Terminal cmd={['$ npx expo start']} />
+  const municipios = ['Recife', 'Caruaru', 'Petrolina', 'Olinda'];
+  const valores = [60, 40, 35, 30];
 
-</Step>
+  const tipos = ['Saúde', 'Educação', 'Infraestrutura', 'Outros'];
 
-<Step label="2">
-## Open the app on your device
+  const pieData = [
+    { key: 1, value: 45, svg: { fill: '#f44336' }, label: 'Saúde' },
+    { key: 2, value: 25, svg: { fill: '#2196f3' }, label: 'Educação' },
+    { key: 3, value: 20, svg: { fill: '#ff9800' }, label: 'Infraestrutura' },
+    { key: 4, value: 10, svg: { fill: '#4caf50' }, label: 'Outros' },
+  ];
 
-After running the command above, you will see a QR code in your terminal. Scan this QR code to open the app on your device.
+  const emendas = [
+    { numero: 1022, objeto: "Políticas de saúde", cidade: "Recife", status: "Em execução", cor: "#2e7d32", tipo: "Saúde" },
+    { numero: 1021, objeto: "Infraestrutura urbana", cidade: "Caruaru", status: "Em execução", cor: "#2e7d32", tipo: "Infraestrutura" },
+    { numero: 1014, objeto: "Equipamentos", cidade: "Petrolina", status: "Em análise", cor: "#ef6c00", tipo: "Educação" },
+    { numero: 1008, objeto: "Equipamentos", cidade: "Olinda", status: "Em execução", cor: "#2e7d32", tipo: "Educação" },
+  ];
 
-If you're using an Android Emulator or iOS Simulator, you can press <kbd>a</kbd> or <kbd>i</kbd> respectively to open the app.
+  const emendasFiltradas = emendas.filter(e =>
+    (!filtroMunicipio || e.cidade === filtroMunicipio) &&
+    (!filtroTipo || e.tipo === filtroTipo)
+  );
 
-<Collapsible summary="Having problems?">
+  const exportCSV = async () => {
+    const headers = "Número,Objeto,Cidade,Status\n";
+    const rows = emendasFiltradas.map(e => [e.numero, e.objeto, e.cidade, e.status]);
+    const csvContent = headers + rows.map(e => e.join(",")).join("\n");
 
-Make sure you are on the same Wi-Fi network on your computer and your device.
+    const path = `${RNFS.DocumentDirectoryPath}/emendas.csv`;
+    await RNFS.writeFile(path, csvContent, 'utf8');
+    await Share.open({ url: `file://${path}`, type: 'text/csv' });
+  };
 
-If it still doesn't work, it may be due to the router configuration &mdash; this is common for public networks. You can work around this by choosing the **Tunnel** connection type when starting the development server, then scanning the QR code again.
+  const exportPDF = async () => {
+    const htmlRows = emendasFiltradas.map(e => `<tr><td>${e.numero}</td><td>${e.objeto}</td><td>${e.cidade}</td><td>${e.status}</td></tr>`).join('');
+    const htmlContent = `
+      <h1>Relatório de Emendas</h1>
+      <table border="1" style="width: 100%">
+        <tr><th>Número</th><th>Objeto</th><th>Cidade</th><th>Status</th></tr>
+        ${htmlRows}
+      </table>
+    `;
 
-<Terminal cmd={['$ npx expo start --tunnel']} />
+    const options = {
+      html: htmlContent,
+      fileName: 'relatorio_emendas',
+      directory: 'Documents',
+    };
 
-> Using the **Tunnel** connection type will make the app reloads considerably slower than on **LAN** or **Local**, so it's best to avoid tunnel when possible. You may want to install and use an emulator or simulator to speed up development if **Tunnel** is required to access your machine from another device on your network.
+    const file = await RNHTMLtoPDF.convert(options);
+    await Share.open({ url: `file://${file.filePath}`, type: 'application/pdf' });
+  };
 
-</Collapsible>
+  return (
+    <>
+      <Appbar.Header>
+        <Appbar.Content title="Gestão de Emendas" subtitle="Senador Humberto Costa" />
+      </Appbar.Header>
 
-</Step>
+      <ScrollView style={styles.container}>
+        <View style={styles.statsContainer}>
+          <Card style={styles.card}><Card.Content><Title>Emendas</Title><Text variant="headlineMedium">256</Text></Card.Content></Card>
+          <Card style={styles.card}><Card.Content><Title>Em Execução</Title><Text style={{ color: '#2e7d32' }}>72</Text></Card.Content></Card>
+          <Card style={styles.card}><Card.Content><Title>Em Análise</Title><Text style={{ color: '#ef6c00' }}>45</Text></Card.Content></Card>
+        </View>
 
-<Step label="3">
+        <View style={styles.filterContainer}>
+          {municipios.map((m, i) => (
+            <Chip key={i} selected={filtroMunicipio === m} onPress={() => setFiltroMunicipio(m)} style={{ margin: 4 }}>{m}</Chip>
+          ))}
+          {tipos.map((t, i) => (
+            <Chip key={t} selected={filtroTipo === t} onPress={() => setFiltroTipo(t)} style={{ margin: 4 }}>{t}</Chip>
+          ))}
+          <Chip onPress={() => { setFiltroMunicipio(null); setFiltroTipo(null); }} style={{ margin: 4 }} icon="close">Limpar</Chip>
+        </View>
 
-## Make your first change
+        <Card style={styles.card}><Card.Content><Title>Emendas por Ano</Title>
+          <View style={{ height: 200, flexDirection: 'row', paddingVertical: 10 }}>
+            <YAxis data={dados} contentInset={{ top: 20, bottom: 20 }} svg={{ fontSize: 10, fill: 'grey' }} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <LineChart
+                style={{ flex: 1 }}
+                data={dados}
+                svg={{ stroke: '#3f51b5' }}
+                contentInset={{ top: 20, bottom: 20 }}
+                curve={shape.curveMonotoneX}
+              >
+                <Grid />
+              </LineChart>
+              <XAxis
+                style={{ marginHorizontal: -10, height: 20 }}
+                data={dados}
+                formatLabel={(value, index) => anos[index]}
+                contentInset={{ left: 15, right: 15 }}
+                svg={{ fontSize: 10, fill: 'grey' }}
+              />
+            </View>
+          </View>
+        </Card.Content></Card>
 
-Open the **app/(tabs)/index.tsx** file in your code editor and make a change.
+        <Card style={styles.card}><Card.Content><Title>Distribuição por Município</Title>
+          <BarChart style={{ height: 200 }} data={valores} svg={{ fill: '#4caf50' }} contentInset={{ top: 30, bottom: 30 }} spacingInner={0.2} gridMin={0} />
+          <XAxis style={{ marginTop: 10 }} data={valores} formatLabel={(value, index) => municipios[index]} contentInset={{ left: 10, right: 10 }} svg={{ fontSize: 10, fill: 'black' }} />
+        </Card.Content></Card>
 
-<DiffBlock
-  raw={`diff --git a/app/(tabs)/index.tsx b/app/(tabs)/index.tsx
-index 45cfa0e..4d1b384 100644
---- a/app/(tabs)/index.tsx
-+++ b/app/(tabs)/index.tsx
-@@ -17,7 +17,7 @@ export default function HomeScreen() {
-       }
-     >
-       <ThemedView style={styles.titleContainer}>
--        <ThemedText type="title">Welcome!</ThemedText>
-+        <ThemedText type="title">Hello World!</ThemedText>
-         <HelloWave />
-       </ThemedView>
-       <ThemedView style={styles.stepContainer}>
-  `}
-/>
+        <Card style={styles.card}><Card.Content><Title>Distribuição por Tipo</Title>
+          <PieChart style={{ height: 200 }} data={pieData} />
+        </Card.Content></Card>
 
-<Collapsible summary="Changes not showing up on your device?">
+        <Card style={styles.card}><Card.Content><Title>Exportar Dados</Title>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 }}>
+            <Button title="Exportar CSV" onPress={exportCSV} />
+            <Button title="Exportar PDF" onPress={exportPDF} />
+          </View>
+        </Card.Content></Card>
 
-Expo Go is configured by default to automatically reload the app whenever a file is changed, but let's make sure to go over the steps to enable it in case somehow things aren't working.
+        <Card style={styles.card}><Card.Content><Title>Últimas Emendas</Title>
+          <DataTable>
+            <DataTable.Header>
+              <DataTable.Title>Número</DataTable.Title>
+              <DataTable.Title>Objeto</DataTable.Title>
+              <DataTable.Title>Município</DataTable.Title>
+              <DataTable.Title>Status</DataTable.Title>
+            </DataTable.Header>
 
-- Make sure you have the [development mode enabled in Expo CLI](/workflow/development-mode#development-mode).
-- Close the Expo app and reopen it.
-- Once the app is open again, shake your device to reveal the developer menu. If you are using an emulator, press <kbd>Ctrl</kbd> + <kbd>M</kbd> for Android or <kbd>Cmd ⌘</kbd> + <kbd>D</kbd> for iOS.
-- If you see **Enable Fast Refresh**, press it. If you see **Disable Fast Refresh**, dismiss the developer menu. Now try making another change.
+            {emendasFiltradas.map((emenda, index) => (
+              <DataTable.Row key={index}>
+                <DataTable.Cell>{emenda.numero}</DataTable.Cell>
+                <DataTable.Cell>{emenda.objeto}</DataTable.Cell>
+                <DataTable.Cell>{emenda.cidade}</DataTable.Cell>
+                <DataTable.Cell><Chip style={{ backgroundColor: emenda.cor }} textStyle={{ color: '#fff' }}>{emenda.status}</Chip></DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable>
+        </Card.Content></Card>
+      </ScrollView>
+    </>
+  );
+}
 
-  <ContentSpotlight
-    alt="Developer menu in Expo Go app."
-    src="/static/images/get-started/developer-menu.png"
-    className="max-w-[540px]"
-  />
-
-</Collapsible>
-
-</Step>
-
----
-
-## File structure
-
-Below, you can get familiar with the default project's file structure:
-
-<ProjectStructure />
-
-## Features
-
-The default project template has the following features:
-
-<TemplateFeatures />
+const styles = StyleSheet.create({
+  container: { padding: 10, backgroundColor: '#f4f4f4' },
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  card: { marginVertical: 10, backgroundColor: 'white' },
+  filterContainer: { flexDirection: 'row', flexWrap: 'wrap', marginVertical: 10, paddingHorizontal: 5 },
+});
